@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion de tickets</title>
+    <style>
+        body {
+            font-family: "Source Sans Pro", sans-serif;
+            color: #4b453e;
+        }
+
+        .content {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .container_table {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        #formulaire_ticket {
+            display: flex;
+            flex-direction: column;
+            width: 300px;
+            border-radius: 15px;
+            box-shadow: 0 0 10px rgba(75, 69, 62, .15);
+            background-color: #f1ede8;
+            padding: 16px;
+        }
+
+        label {
+            font-weight: bold;
+            color: #4b453e;
+        }
+
+        input {
+            margin-top: 4px;
+            padding: 4px;
+            height: 24px;
+            border: none;
+            border-radius: 4px;
+        }
+
+        input:focus {
+            outline: none;
+        }
+
+        button {
+            margin-top: 8px;
+            padding: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            background-color: #ff7a7a;
+            color: #f1ede8;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #ff7a7aa1;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            border-radius: 15px;
+            box-shadow: 0 0 10px rgba(75, 69, 62, .15);
+            background-color: #f1ede8;
+        }
+
+        th:not(:last-child),
+        td:not(:last-child) {
+            border-right: 1px solid #e7dfd5;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        tr:not(:first-child) {
+            border-top: 1px solid #e7dfd5;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Création et gestion des tickets de caisse</h1>
+    <div class="content">
+        <form id="formulaire_ticket">
+            <label for="date">Date:</label>
+            <input type="date" id="date" required><br>
+            <label for="intitule">Intitulé:</label>
+            <input type="text" id="intitule" required placeholder="Nutella 1kg"><br>
+            <label for="montant">Montant:</label>
+            <input type="number" id="montant" required placeholder="3.99"><br>
+            <input type="hidden" id="ticketIndex">
+            <button type="button" onclick="createOrUpdateTicket()">Ajouter / Modifier</button>
+            <button type="button" onclick="resetForm()">Annuler</button>
+        </form>
+        <br>
+        <div class="container_table">
+            <table id="ticket_table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Intitulé</th>
+                        <th>Montant</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="ticket_content">
+                </tbody>
+            </table>
+            <div>
+                <p>Totaux par mois:</p>
+                <ul id="totals-mois"></ul>
+                <p>Total général: <span id="total-general"></span></p>
+            </div>
+        </div>
+
+
+    </div>
+
+    <script>
+        let tickets = [];
+        let monthlyTotals = {};
+
+        function createOrUpdateTicket() {
+            const date = document.getElementById('date').value;
+            const intitule = document.getElementById('intitule').value;
+            const montant = parseFloat(document.getElementById('montant').value);
+            const index = document.getElementById('ticketIndex').value;
+
+            // Vérification du formaulaire
+            if (date === '' || intitule === '' || isNaN(montant)) {
+                alert("Veuillez remplir tous les champs.");
+                return;
+            }
+
+            if (index === '') {
+                // Ajout d'un nouveau ticket
+                if (tickets.some(ticket => ticket.date === date)) {
+                    alert("Il ne peut y avoir 2 tickets avec la même date.");
+                    return;
+                }
+
+                tickets.push({ date, intitule, montant });
+            } else {
+                // Modification d'un ticket + vérification de la date
+                if (tickets.some((ticket, i) => i !== parseInt(index) && ticket.date === date)) {
+                    alert("Il ne peut y avoir 2 tickets avec la même date.");
+                    return;
+                }
+
+                tickets[index] = { date, intitule, montant };
+            }
+
+            updateTable();
+            calculateTotals();
+            calculateMonthlyTotals();
+            resetForm();
+        }
+
+        // Fonction pour réinitialiser le formulaire
+        function resetForm() {
+            document.getElementById('formulaire_ticket').reset();
+            document.getElementById('ticketIndex').value = '';
+        }
+
+        // Fonction qui met à jour le tableau des tickets
+        function updateTable() {
+            const tableBody = document.getElementById('ticket_content');
+            tableBody.innerHTML = '';
+            tickets.forEach((ticket, index) => {
+                const row = `<tr>
+                                <td>${ticket.date}</td>
+                                <td>${ticket.intitule}</td>
+                                <td>${ticket.montant}</td>
+                                <td>
+                                    <button onclick="editTicket(${index})">Modifier</button>
+                                    <button onclick="deleteTicket(${index})">Supprimer</button>
+                                </td>
+                            </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        // Fonction pour modifier un ticket
+        function editTicket(index) {
+            const ticket = tickets[index];
+            document.getElementById('date').value = ticket.date;
+            document.getElementById('intitule').value = ticket.intitule;
+            document.getElementById('montant').value = ticket.montant;
+            document.getElementById('ticketIndex').value = index;
+        }
+
+        // Fonction pour supprimer un ticket
+        function deleteTicket(index) {
+            tickets.splice(index, 1);
+            updateTable();
+            calculateTotals();
+            calculateMonthlyTotals();
+        }
+
+        // Fonction pour calculer le total général
+        function calculateTotals() {
+            const totalGeneralElement = document.getElementById('total-general');
+
+            const totalGeneral = tickets.reduce((total, ticket) => total + ticket.montant, 0);
+
+            totalGeneralElement.textContent = totalGeneral.toFixed(2);
+        }
+
+        // Fonction pour calculer le total par moiss
+        function calculateMonthlyTotals() {
+            monthlyTotals = {};
+
+            tickets.forEach(ticket => {
+                const [year, month] = ticket.date.split('-');
+                const key = `${year}-${month}`;
+                if (!monthlyTotals[key]) {
+                    monthlyTotals[key] = 0;
+                }
+                monthlyTotals[key] += ticket.montant;
+            });
+
+            const monthlyTotalsList = document.getElementById('totals-mois');
+            // J'initialise un tableau contenant les mois de l'année afin d'afficher un mois en toute lettre plutôt que sa représentation en chiffre 
+            // Exemple 07/2024 -> Juillet-2024
+            const months = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+
+            monthlyTotalsList.innerHTML = '';
+
+            for (const key in monthlyTotals) {
+                const [year, month] = key.split('-');
+                const total = monthlyTotals[key].toFixed(2);
+                const listItem = document.createElement('li');
+                listItem.textContent = `Total pour ${months[parseInt(month) - 1]}-${year}: ${total}`;
+                monthlyTotalsList.appendChild(listItem);
+            }
+        }
+    </script>
+</body>
+
+</html>
